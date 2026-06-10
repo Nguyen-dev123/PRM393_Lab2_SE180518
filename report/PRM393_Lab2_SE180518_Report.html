@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PRM393_Lab2_SE180518_Report</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 12pt; line-height: 1.6; margin: 2.5cm; color: #000; }
+  h1 { font-size: 18pt; font-weight: bold; margin-bottom: 4px; }
+  h2 { font-size: 15pt; font-weight: bold; margin-top: 24px; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  h3 { font-size: 13pt; font-weight: bold; margin-top: 16px; margin-bottom: 6px; }
+  p { margin: 8px 0; text-align: justify; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  td, th { border: 1px solid #aaa; padding: 6px 10px; font-size: 11pt; }
+  th { background: #e8eaf6; font-weight: bold; }
+  code { font-family: Consolas, monospace; background: #f5f5f5; padding: 1px 4px; font-size: 10pt; }
+  pre { background: #f5f5f5; padding: 12px; font-family: Consolas, monospace; font-size: 10pt; border-left: 3px solid #5c6bc0; overflow-x: auto; }
+  ul, ol { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  .cover { text-align: center; margin-bottom: 40px; }
+  .cover h1 { font-size: 20pt; }
+  .cover h2 { border: none; font-size: 16pt; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 20px 0; }
+  .info-table td:first-child { font-weight: bold; width: 140px; background: #f0f0f0; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>PRM393 – Mobile Programming</h1>
+  <h2>Lab 2: Journal Trend Analysis Mobile Application</h2>
+  <h2>Project Report</h2>
+  <br>
+  <table class="info-table" style="width:400px; margin: 0 auto;">
+    <tr><td>Student ID</td><td>SE180518</td></tr>
+    <tr><td>Subject</td><td>PRM393 – Mobile Programming</td></tr>
+    <tr><td>Assignment</td><td>Lab 2 – Journal Trend Analysis</td></tr>
+    <tr><td>Repository</td><td>PRM393_Lab2_SE180518</td></tr>
+    <tr><td>Date</td><td>June 2026</td></tr>
+  </table>
+</div>
+
+<hr>
+
+<h2>1. Introduction</h2>
+<p>For this lab, I built a Flutter mobile application called <strong>Journal Trend Analyzer</strong> that retrieves real scholarly publication data from OpenAlex and visualizes research trends for any topic the user searches.</p>
+<p>Research publications are growing rapidly across many disciplines, making it increasingly important to identify emerging topics, influential papers, active researchers, and publication trends. Academic databases such as OpenAlex provide access to large-scale scholarly data that can be used for research analytics and decision support.</p>
+<p>The app allows users to search for any research topic — such as Artificial Intelligence, Blockchain, or Cybersecurity — and instantly explore how that topic has evolved over time through interactive charts, rankings, and summary dashboards. All data is fetched live from the OpenAlex REST API without any backend or authentication required.</p>
+<p>I chose OpenAlex as the data source because it is completely free, has no API key requirement for basic usage, covers over 250 million publications from global academic sources, and provides a clean and well-documented REST API that works well from a Flutter mobile client.</p>
+
+<h2>2. Learning Objectives</h2>
+<p>This assignment helped me practice and apply several key mobile development skills:</p>
+<p><strong>RESTful API Integration</strong> — I learned how to call an external REST API from a Flutter app, handle HTTP responses, parse complex JSON structures, and deal with real-world edge cases like missing fields and unusual data formats (OpenAlex stores abstracts as an inverted index, not plain text).</p>
+<p><strong>Asynchronous Programming</strong> — The app heavily uses async/await and Future to handle API calls without blocking the UI. I also implemented background data fetching so that analytics load asynchronously after the search results are already displayed.</p>
+<p><strong>State Management</strong> — I used the Provider package with ChangeNotifier to manage shared state across multiple screens. This was my first time using Provider in a real project and I found it much cleaner than passing data through constructors.</p>
+<p><strong>Data Visualization</strong> — I used the fl_chart library to build an interactive line chart showing publication trends over time. This required transforming raw API data into chart-compatible data points.</p>
+<p><strong>Clean Architecture</strong> — I organized the project into separate layers (models, services, state, screens, widgets) to keep the code maintainable and avoid mixing UI logic with business logic.</p>
+
+<h2>3. System Design</h2>
+
+<h3>3.1 Project Structure</h3>
+<p>The project follows a clean layered architecture with clear separation of concerns between data, logic, and UI:</p>
+<pre>lib/
+├── models/
+│   ├── publication.dart       # Publication entity
+│   └── trend_data.dart        # Analytics models
+├── services/
+│   ├── openalex_service.dart  # API calls + analytics
+│   └── history_service.dart   # Search history (SharedPreferences)
+├── state/
+│   └── search_provider.dart   # ChangeNotifier state management
+├── screens/
+│   ├── splash_screen.dart
+│   ├── search_screen.dart
+│   ├── publication_detail_screen.dart
+│   ├── trend_screen.dart
+│   └── dashboard_screen.dart
+├── widgets/
+│   └── loading_widget.dart    # LoadingList, EmptyState, ErrorState
+└── main.dart</pre>
+
+<p><strong>Models layer</strong> — Pure Dart data classes. Publication represents a single scholarly work. trend_data.dart contains lightweight models for analytics results.</p>
+<p><strong>Services layer</strong> — OpenAlexService handles all HTTP communication and analytics computation. HistoryService handles local persistence of search history.</p>
+<p><strong>State layer</strong> — SearchProvider is the single source of truth for all app state, managing the search lifecycle, pagination, background analytics, and search history.</p>
+<p><strong>Screens layer</strong> — Each screen focuses purely on presentation, reading from SearchProvider but never calling API methods directly.</p>
+
+<h3>3.2 State Management with Provider</h3>
+<p>The application uses the Provider pattern with ChangeNotifier. When a user searches, the provider: sets state to loading → fetches first 50 results → shows results immediately → starts background fetch of up to 200 publications → computes analytics → notifies listeners to update Trend and Dashboard tabs.</p>
+
+<h3>3.3 OpenAlex API Integration</h3>
+<p><strong>Base URL:</strong> https://api.openalex.org &nbsp;&nbsp; <strong>Endpoint:</strong> GET /works</p>
+<table>
+  <tr><th>Parameter</th><th>Value</th><th>Purpose</th></tr>
+  <tr><td>search</td><td>user's query</td><td>Full-text search across titles and abstracts</td></tr>
+  <tr><td>sort</td><td>cited_by_count:desc</td><td>Sort by most cited first</td></tr>
+  <tr><td>per_page</td><td>50</td><td>Results per page</td></tr>
+  <tr><td>page</td><td>1, 2, 3...</td><td>Pagination support</td></tr>
+  <tr><td>mailto</td><td>se180518@fpt.edu.vn</td><td>Polite pool for higher rate limits</td></tr>
+</table>
+
+<p>One interesting technical challenge was the abstract format. OpenAlex stores abstracts as an inverted index (word → list of positions) rather than plain text. The app reconstructs the original text by reversing this mapping — sorting all word-position pairs by position and joining the words back into a sentence.</p>
+
+<h2>4. Functional Requirements Implementation</h2>
+
+<h3>4.1 Topic Search – Search Screen</h3>
+<p>The search screen is the entry point of the app. Users can type any research keyword and get results sorted by citation count. Features include:</p>
+<ul>
+  <li>Search bar with keyboard submit action</li>
+  <li>9 popular topic chips for quick one-tap search (AI, Machine Learning, Blockchain, IoT, Cybersecurity, Data Science, Software Engineering, Deep Learning, NLP)</li>
+  <li>Results list showing title, authors (first 2 + "et al."), year, citation count, and journal name</li>
+  <li>Rank badges — top 3 results highlighted with gold badge</li>
+  <li>Infinite scroll pagination — automatically loads next 50 results when scrolling to bottom</li>
+  <li>Search history — last 10 searches saved locally, accessible via history icon</li>
+  <li>Shimmer loading animation while fetching</li>
+  <li>Error state with retry button if API call fails</li>
+</ul>
+
+<h3>4.2 Publication Details – Publication Detail Screen</h3>
+<p>Tapping any publication card opens a full detail screen showing:</p>
+<ul>
+  <li>Full publication title</li>
+  <li>Citation count and publication year (stat chips)</li>
+  <li>Journal/source name</li>
+  <li>DOI (Digital Object Identifier)</li>
+  <li>Author list — up to 5 authors shown, remaining count displayed</li>
+  <li>Abstract — reconstructed from OpenAlex inverted index format</li>
+  <li>"Open Full Paper" button — opens the paper URL in device browser</li>
+</ul>
+
+<h3>4.3 Publication Trend Analysis – Trend Screen</h3>
+<p>The trend screen provides 4 sub-sections accessible via chip tabs:</p>
+<p><strong>Publication Trend Chart</strong> — Line chart (fl_chart) showing number of publications per year from 1990 to present. Smooth curved line with filled area below. X-axis shows years, Y-axis shows publication count.</p>
+<p><strong>Top Influential Papers</strong> — Top 20 papers ranked by citation count (highest to lowest). Shows title, citation count, and year. Tap to view publication details.</p>
+<p><strong>Top Research Journals</strong> — Top 10 journals ranked by number of publications, with horizontal progress bar showing relative contribution.</p>
+<p><strong>Top Contributing Authors</strong> — Top 10 authors ranked by number of papers, with progress bar visualization.</p>
+
+<h3>4.7 Research Trend Dashboard – Dashboard Screen</h3>
+<p>Summary dashboard with key insights about the searched topic:</p>
+<table>
+  <tr><th>Metric</th><th>Description</th></tr>
+  <tr><td>Total Publications</td><td>Total number of publications analyzed</td></tr>
+  <tr><td>Avg Citations</td><td>Average citation count across all publications</td></tr>
+  <tr><td>Most Active Year</td><td>Year with the highest publication count</td></tr>
+  <tr><td>Max Citations</td><td>Highest single-paper citation count</td></tr>
+  <tr><td>Top Journal</td><td>Journal with most publications on the topic</td></tr>
+  <tr><td>Top Author</td><td>Author with most publications on the topic</td></tr>
+  <tr><td>Most Influential Paper</td><td>Paper with highest citation count</td></tr>
+</table>
+
+<h2>5. Technical Stack</h2>
+
+<table>
+  <tr><th>Package</th><th>Version</th><th>Purpose</th></tr>
+  <tr><td>flutter</td><td>3.44.0</td><td>UI framework</td></tr>
+  <tr><td>provider</td><td>6.1.5</td><td>State management</td></tr>
+  <tr><td>http</td><td>1.6.0</td><td>HTTP client for API calls</td></tr>
+  <tr><td>fl_chart</td><td>0.69.2</td><td>Line chart visualization</td></tr>
+  <tr><td>shared_preferences</td><td>2.5.5</td><td>Local search history storage</td></tr>
+  <tr><td>shimmer</td><td>3.0.0</td><td>Loading skeleton animation</td></tr>
+  <tr><td>url_launcher</td><td>6.3.2</td><td>Open paper URLs in browser</td></tr>
+</table>
+
+<p><strong>Android Configuration:</strong> minSdk 21 (Android 5.0), targetSdk 34 (Android 14), Internet permission added in AndroidManifest.xml.</p>
+
+<h2>6. AI-Assisted Code Review</h2>
+
+<h3>6.1 Tool Used</h3>
+<p><strong>CodeRabbit</strong> (coderabbit.ai) — an AI-powered automated code review tool that analyzes code for bugs, security issues, performance problems, and code quality improvements.</p>
+
+<h3>6.2 Issues Found and Fixed</h3>
+<p><strong>Issue 1: Silent error handling in analytics fetch</strong><br>
+<em>Location:</em> search_provider.dart — _fetchAllForAnalytics() method<br>
+<em>Problem:</em> The catch block was completely empty. Any exception during the background analytics fetch would be silently swallowed. If the analytics fetch failed, the Trend and Dashboard tabs would show a loading indicator forever with no way for the user to know something went wrong.<br>
+<em>Fix applied:</em> Added proper EmptyState and ErrorState widgets on the Trend and Dashboard screens so users see meaningful feedback instead of an indefinite loading state.</p>
+
+<p><strong>Issue 2: Potential notifyListeners() after dispose</strong><br>
+<em>Location:</em> search_provider.dart — async methods<br>
+<em>Problem:</em> notifyListeners() was being called inside async functions that could complete after the widget tree is disposed. While Flutter's ChangeNotifier handles this internally, it's considered best practice to guard against it.<br>
+<em>Fix applied:</em> Acknowledged as low risk since SearchProvider lives for the full app lifecycle. No structural change needed.</p>
+
+<p><strong>Issue 3: Hardcoded email address in service</strong><br>
+<em>Location:</em> openalex_service.dart — _email constant<br>
+<em>Problem:</em> The email used for OpenAlex's polite pool is hardcoded in source code. In production, configuration values should be externalized.<br>
+<em>Fix applied:</em> Acceptable for lab scope. In production, this would be moved to a .env file or Flutter's --dart-define build configuration.</p>
+
+<h3>6.3 Code Improvements Applied</h3>
+<ul>
+  <li>Replaced basic CircularProgressIndicator with shimmer skeleton loading for better perceived performance</li>
+  <li>Added dedicated EmptyState widget with descriptive messages for all empty data scenarios</li>
+  <li>Added ErrorState widget with a Retry button so users can recover from failed API calls</li>
+  <li>Set a 15-second timeout on all HTTP requests to prevent indefinite hanging</li>
+  <li>Used IndexedStack for bottom navigation so each tab preserves its scroll position and state when switching</li>
+</ul>
+
+<h2>7. User Interface Design</h2>
+
+<h3>7.1 Screen Navigation Flow</h3>
+<pre>SplashScreen (2s animated intro)
+    └── HomeShell (BottomNavigationBar)
+            ├── Tab 0: SearchScreen
+            │       └── PublicationDetailScreen
+            ├── Tab 1: TrendScreen
+            │       ├── Publication Trend Chart
+            │       ├── Top Papers list
+            │       ├── Top Journals list
+            │       └── Top Authors list
+            └── Tab 2: DashboardScreen</pre>
+
+<h3>7.2 Design Decisions</h3>
+<p><strong>Material 3 with Indigo color scheme</strong> — Indigo conveys professionalism and academic credibility, appropriate for a research tool. Material 3 provides modern, accessible UI components.</p>
+<p><strong>Bottom Navigation Bar with IndexedStack</strong> — Standard mobile navigation pattern. Using IndexedStack ensures each tab's state is preserved when switching — search results don't reset when the user goes to Trend tab and comes back.</p>
+<p><strong>Shimmer loading</strong> — Instead of a simple spinner, shimmer skeleton screens give users a preview of the layout while data loads, making the app feel faster and more polished.</p>
+<p><strong>Rank badges on search results</strong> — Top 3 results get a gold badge to draw attention to the most highly cited papers, helping users quickly identify influential work.</p>
+<p><strong>Progress bars for rankings</strong> — For journals and authors, horizontal progress bars make it visually obvious how dominant the top entry is compared to others — more intuitive than plain numbers.</p>
+
+<h2>8. Challenges and Lessons Learned</h2>
+
+<h3>8.1 Challenges Faced</h3>
+<p><strong>Challenge 1: Abstract inverted index format</strong><br>
+When I first tested the API, I expected abstracts to be plain text strings. Instead, OpenAlex returns them as a dictionary mapping each word to a list of its position indices. I had to write a reconstruction algorithm that reverses this format — collecting all word-position pairs, sorting by position, and joining the words back into a sentence.</p>
+
+<p><strong>Challenge 2: Two-stage data loading</strong><br>
+The app needs fast search results AND comprehensive analytics. Fetching all 200 publications at once before showing anything would feel too slow. My solution was to show the first 50 results immediately, then fetch more in the background for analytics. The tricky part was coordinating the loading states across the Trend and Dashboard tabs.</p>
+
+<p><strong>Challenge 3: fl_chart configuration</strong><br>
+Getting the line chart to look correct with proper axis labels required reading through the fl_chart documentation carefully. OpenAlex data can span many years, so the x-axis needed dynamic interval calculation to avoid overlapping labels.</p>
+
+<p><strong>Challenge 4: Pagination state management</strong><br>
+When implementing pagination, I had to be careful not to mix the paginated _results list (for the search tab) with _allPubs (for analytics). These serve different purposes and needed to be managed independently in SearchProvider.</p>
+
+<h3>8.2 Lessons Learned</h3>
+<ul>
+  <li><strong>Read API documentation before coding</strong> — Wasted time on the abstract field because I assumed it would be plain text. Reading docs first would have saved that time.</li>
+  <li><strong>Design state before writing code</strong> — The two-level data model needed upfront thought. Good state structure design made background fetching much easier to implement correctly.</li>
+  <li><strong>Provider is clean but requires discipline</strong> — Provider works well for sharing state but keeping the provider lean is important for maintainability.</li>
+  <li><strong>Background async is powerful but tricky</strong> — Running analytics in the background improved UX significantly, but required careful thought about state reset scenarios.</li>
+</ul>
+
+<h2>9. Future Improvements</h2>
+<p>Given more time, several enhancements would make the app more useful:</p>
+<ul>
+  <li>Filter by year range — let users restrict results to a specific time period</li>
+  <li>Bar chart option — alternative visualization for the publication trend data</li>
+  <li>Save/bookmark publications — let users save interesting papers to a local reading list</li>
+  <li>Export trend data — share the trend chart as an image or export data as CSV</li>
+  <li>Compare topics — show two topics' trend lines on the same chart for side-by-side comparison</li>
+</ul>
+
+<h2>10. Conclusion</h2>
+<p>The Journal Trend Analyzer successfully meets all the functional and technical requirements of Lab 2. The app is built with Flutter and Dart, consumes the OpenAlex REST API directly from the mobile client without any backend, handles JSON data processing and asynchronous state management, visualizes data through interactive charts, and runs on Android.</p>
+<p>The project helped me gain hands-on experience with API integration, Provider state management, data visualization with fl_chart, and organizing a Flutter project with a clean layered architecture. The AI-assisted code review with CodeRabbit caught real issues that I was able to address before submission.</p>
+<p>The most challenging and interesting part of this lab was designing the two-stage loading system — showing fast initial results while computing deeper analytics in the background. This kind of UX consideration makes the difference between an app that feels slow and one that feels responsive.</p>
+
+<hr>
+
+<h2>References</h2>
+<ol>
+  <li>OpenAlex API Documentation — https://developers.openalex.org</li>
+  <li>OpenAlex API Reference: Works — https://developers.openalex.org/api-reference/works</li>
+  <li>Flutter Documentation — https://flutter.dev/docs</li>
+  <li>Provider Package — https://pub.dev/packages/provider</li>
+  <li>fl_chart Package — https://pub.dev/packages/fl_chart</li>
+  <li>shared_preferences Package — https://pub.dev/packages/shared_preferences</li>
+  <li>CodeRabbit AI Code Review — https://coderabbit.ai</li>
+  <li>Material Design 3 — https://m3.material.io</li>
+</ol>
+
+</body>
+</html>
