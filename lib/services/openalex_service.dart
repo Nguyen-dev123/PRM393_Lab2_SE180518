@@ -3,15 +3,26 @@ import 'package:http/http.dart' as http;
 import '../models/publication.dart';
 import '../models/trend_data.dart';
 
+/// Service class for interacting with the OpenAlex REST API.
+/// 
+/// OpenAlex is a free, open catalog of the global research system.
+/// Base URL: https://api.openalex.org
+/// No API key required — uses polite pool via mailto parameter.
 class OpenAlexService {
   static const _base = 'https://api.openalex.org';
   static const _email = 'se180518@fpt.edu.vn'; // polite pool
   static const _perPage = 50;
 
+  /// Encodes a map of parameters into a query string.
   static String _params(Map<String, String> p) =>
       p.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
 
-  // Tìm publications theo keyword, trả về trang đầu
+  /// Searches publications by keyword.
+  /// 
+  /// [query] - The search keyword (e.g. "Artificial Intelligence")
+  /// [page] - Page number for pagination (default: 1)
+  /// [perPage] - Number of results per page (default: 50)
+  /// Returns a list of [Publication] objects sorted by citation count.
   static Future<List<Publication>> searchPublications(
     String query, {
     int page = 1,
@@ -32,7 +43,8 @@ class OpenAlexService {
     return results.map((r) => Publication.fromJson(r as Map<String, dynamic>)).toList();
   }
 
-  // Lấy TẤT CẢ publications cho trend analysis (tối đa 200)
+  /// Fetches up to 200 publications for trend analysis (4 pages x 50).
+  /// Runs in background after initial search results are displayed.
   static Future<List<Publication>> fetchAllForTrend(String query) async {
     final all = <Publication>[];
     for (int page = 1; page <= 4; page++) {
@@ -43,7 +55,7 @@ class OpenAlexService {
     return all;
   }
 
-  // Trend theo năm
+  /// Groups publications by year and returns sorted list from 1990 onwards.
   static List<YearCount> getTrendByYear(List<Publication> pubs) {
     final map = <int, int>{};
     for (final p in pubs) {
@@ -56,7 +68,7 @@ class OpenAlexService {
     return list;
   }
 
-  // Top journals
+  /// Returns top [top] journals ranked by publication count.
   static List<JournalCount> getTopJournals(List<Publication> pubs, {int top = 10}) {
     final map = <String, int>{};
     for (final p in pubs) {
@@ -71,7 +83,7 @@ class OpenAlexService {
     return list.take(top).toList();
   }
 
-  // Top authors
+  /// Returns top [top] authors ranked by publication count.
   static List<AuthorCount> getTopAuthors(List<Publication> pubs, {int top = 10}) {
     final map = <String, int>{};
     for (final p in pubs) {
@@ -86,7 +98,7 @@ class OpenAlexService {
     return list.take(top).toList();
   }
 
-  // Dashboard summary
+  /// Computes summary dashboard data from a list of publications.
   static DashboardData getDashboard(List<Publication> pubs) {
     if (pubs.isEmpty) {
       return DashboardData(totalPublications: 0, avgCitationCount: 0);
