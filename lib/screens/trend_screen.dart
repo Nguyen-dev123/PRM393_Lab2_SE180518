@@ -3,6 +3,8 @@ import 'package:fl_chart/fl_chart.dart';
 import '../state/search_provider.dart';
 import '../models/publication.dart';
 import 'publication_detail_screen.dart';
+import 'package:provider/provider.dart';
+import '../state/config_provider.dart';
 
 class TrendScreen extends StatefulWidget {
   final SearchProvider provider;
@@ -54,8 +56,8 @@ class _TrendScreenState extends State<TrendScreen> {
       ]),
       selected: _section == idx,
       onSelected: (_) => setState(() => _section = idx),
-      selectedColor: Colors.indigo[100],
-      labelStyle: TextStyle(color: _section == idx ? Colors.indigo[800] : Colors.grey[700], fontSize: 12),
+      selectedColor: context.appTheme[100],
+      labelStyle: TextStyle(color: _section == idx ? context.appTheme[800] : Colors.grey[700], fontSize: 12),
     ),
   );
 
@@ -129,19 +131,19 @@ class _TrendScreenState extends State<TrendScreen> {
                 LineChartBarData(
                   spots: spots,
                   isCurved: true,
-                  color: Colors.indigo[600],
+                  color: context.appTheme[600],
                   barWidth: 3,
                   dotData: FlDotData(
                     getDotPainter: (p0, p1, p2, p3) => FlDotCirclePainter(
                       radius: 3,
-                      color: Colors.indigo[600]!,
+                      color: context.appTheme[600]!,
                       strokeColor: Colors.white,
                       strokeWidth: 1.5,
                     ),
                   ),
                   belowBarData: BarAreaData(
                     show: true,
-                    color: Colors.indigo.withValues(alpha: 0.1),
+                    color: context.appTheme.withValues(alpha: 0.1),
                   ),
                 ),
               ],
@@ -167,13 +169,13 @@ class _TrendScreenState extends State<TrendScreen> {
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: Colors.indigo[50],
-              child: Text('${i + 1}', style: TextStyle(color: Colors.indigo[700], fontWeight: FontWeight.bold, fontSize: 12)),
+              backgroundColor: context.appTheme[50],
+              child: Text('${i + 1}', style: TextStyle(color: context.appTheme[700], fontWeight: FontWeight.bold, fontSize: 12)),
             ),
             title: Text(pub.title, maxLines: 2, overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
             subtitle: Text('${pub.citationCount} citations • ${pub.year ?? "N/A"}',
-              style: TextStyle(color: Colors.indigo[400], fontSize: 12)),
+              style: TextStyle(color: context.appTheme[400], fontSize: 12)),
             onTap: () => Navigator.push(ctx,
               MaterialPageRoute(builder: (_) => PublicationDetailScreen(pub: pub))),
           ),
