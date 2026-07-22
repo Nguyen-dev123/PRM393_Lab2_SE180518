@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Each user can read/write their own data
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Authenticated users can read all users (for admin panel)
+    match /users/{userId} {
+      allow read: if request.auth != null;
+    }
+  }
+}

@@ -1,19 +1,81 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/publication.dart';
+import '../firebase/firebase_analytics_service.dart';
+import 'package:provider/provider.dart';
+import '../state/config_provider.dart';
+import '../viewmodels/bookmark_viewmodel.dart';
 
-class PublicationDetailScreen extends StatelessWidget {
+class PublicationDetailScreen extends StatefulWidget {
   final Publication pub;
   const PublicationDetailScreen({super.key, required this.pub});
 
   @override
+  State<PublicationDetailScreen> createState() => _PublicationDetailScreenState();
+}
+
+class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _logAnalytics();
+  }
+
+  Future<void> _logAnalytics() async {
+    await FirebaseAnalyticsService.logViewPublication(
+      widget.pub.title,
+      widget.pub.year ?? 0,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final pub = widget.pub;
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text('Publication Details'),
-        backgroundColor: Colors.indigo[700],
+        backgroundColor: context.appTheme[700],
         foregroundColor: Colors.white,
+        actions: [
+          Builder(
+            builder: (ctx) {
+              final bvm = ctx.watch<BookmarkViewModel?>();
+              if (bvm == null) return const SizedBox.shrink();
+              final saved = bvm.isBookmarked(pub.id);
+              return IconButton(
+                icon: Icon(
+                  saved ? Icons.bookmark : Icons.bookmark_border,
+                  color: Colors.white,
+                ),
+                tooltip: saved ? 'Saved' : 'Save',
+                onPressed: () async {
+                  if (saved) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(content: Text('Already saved ✓')),
+                    );
+                    return;
+                  }
+                  try {
+                    await bvm.add(pub);
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('Publication saved ✓')),
+                      );
+                    }
+                  } catch (e) {
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        SnackBar(content: Text('Failed: $e')),
+                      );
+                    }
+                  }
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -33,7 +95,7 @@ class PublicationDetailScreen extends StatelessWidget {
                     const SizedBox(height: 12),
                     // Stats row
                     Row(children: [
-                      _statChip(Icons.format_quote, '${pub.citationCount}', 'Citations', Colors.indigo),
+                      _statChip(Icons.format_quote, '${pub.citationCount}', 'Citations', context.appTheme),
                       const SizedBox(width: 8),
                       if (pub.year != null)
                         _statChip(Icons.calendar_today, '${pub.year}', 'Year', Colors.teal),
@@ -91,7 +153,7 @@ class PublicationDetailScreen extends StatelessWidget {
                   icon: const Icon(Icons.open_in_new),
                   label: const Text('Open Full Paper'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo[700],
+                    backgroundColor: context.appTheme[700],
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -127,16 +189,103 @@ class PublicationDetailScreen extends StatelessWidget {
   }
 
   Widget _infoRow(IconData icon, String label, String value) {
+    final bool isDoi = label == 'DOI';
+    final bool isAuthors = label == 'Authors';
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 16, color: Colors.indigo[400]),
-        const SizedBox(width: 10),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-          Text(value, style: const TextStyle(fontSize: 13)),
-        ])),
-      ]),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: isDoi
+            ? () async {
+                await Clipboard.setData(ClipboardData(text: value));
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('DOI copied to clipboard ✓'),
+                        duration: Duration(seconds: 2)),
+                  );
+                }
+              }
+            : isAuthors
+                ? () {
+                    final authors = widget.pub.authors;
+                    showModalBottomSheet(
+                      context: context,
+                      shape: const RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(20))),
+                      builder: (_) => Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 40, height: 4,
+                            margin: const EdgeInsets.only(top: 12),
+                            decoration: BoxDecoration(
+                                color: Colors.grey[300],
+                                borderRadius: BorderRadius.circular(2)),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                            child: Row(children: [
+                              Icon(Icons.people, color: context.appTheme[600], size: 20),
+                              const SizedBox(width: 8),
+                              Text('${authors.length} Authors',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold, fontSize: 15)),
+                            ]),
+                          ),
+                          const Divider(height: 1),
+                          ...authors.asMap().entries.map((e) => ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              radius: 14,
+                              backgroundColor: context.appTheme[50],
+                              child: Text(e.value.isNotEmpty ? e.value[0].toUpperCase() : '?',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: context.appTheme[700])),
+                            ),
+                            title: Text(e.value, style: const TextStyle(fontSize: 13)),
+                            trailing: IconButton(
+                              icon: Icon(Icons.copy, size: 16, color: Colors.grey[400]),
+                              onPressed: () async {
+                                await Clipboard.setData(ClipboardData(text: e.value));
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content: Text('Copied: ${e.value}'),
+                                        duration: const Duration(seconds: 2)),
+                                  );
+                                }
+                              },
+                            ),
+                          )),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    );
+                  }
+                : null,
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 16, color: context.appTheme[400]),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+              if (isDoi) ...[
+                const SizedBox(width: 4),
+                Icon(Icons.copy, size: 11, color: Colors.grey[400]),
+              ],
+              if (isAuthors) ...[
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right, size: 13, color: Colors.grey[400]),
+              ],
+            ]),
+            Text(value, style: const TextStyle(fontSize: 13)),
+          ])),
+        ]),
+      ),
     );
   }
 }

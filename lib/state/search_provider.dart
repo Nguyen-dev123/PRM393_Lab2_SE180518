@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/publication.dart';
 import '../models/trend_data.dart';
 import '../services/openalex_service.dart';
 import '../services/history_service.dart';
+import '../firebase/firebase_analytics_service.dart';
 
 enum AppState { idle, loading, loaded, error }
 
@@ -12,6 +15,21 @@ class SearchProvider extends ChangeNotifier {
 
   AppState _state = AppState.idle;
   AppState get state => _state;
+
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
 
   String _errorMsg = '';
   String get errorMsg => _errorMsg;
@@ -37,11 +55,13 @@ class SearchProvider extends ChangeNotifier {
   List<YearCount>? _trendData;
   List<JournalCount>? _topJournals;
   List<AuthorCount>? _topAuthors;
+  List<KeywordCount>? _topKeywords;
   DashboardData? _dashboard;
 
   List<YearCount>? get trendData => _trendData;
   List<JournalCount>? get topJournals => _topJournals;
   List<AuthorCount>? get topAuthors => _topAuthors;
+  List<KeywordCount>? get topKeywords => _topKeywords;
   DashboardData? get dashboard => _dashboard;
 
   // Search history
@@ -72,6 +92,7 @@ class SearchProvider extends ChangeNotifier {
     _trendData = null;
     _topJournals = null;
     _topAuthors = null;
+    _topKeywords = null;
     _dashboard = null;
     _currentPage = 1;
     _hasMore = true;
@@ -88,6 +109,26 @@ class SearchProvider extends ChangeNotifier {
       await HistoryService.add(_query);
       _history = await HistoryService.load();
       notifyListeners();
+
+      // Log Analytics Event
+      try {
+        await FirebaseAnalyticsService.logSearchTopic(_query);
+      } catch (_) {}
+
+      // Log search topic to Firestore for admin report
+      try {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          final topicRef = FirebaseFirestore.instance
+              .collection('search_topics')
+              .doc(_query.toLowerCase().replaceAll(' ', '_'));
+          await topicRef.set({
+            'topic': _query,
+            'count': FieldValue.increment(1),
+            'lastSearched': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      } catch (_) {}
 
       // Fetch full dataset for analytics in background
       _fetchAllForAnalytics();
@@ -119,10 +160,13 @@ class SearchProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _allPubs = await OpenAlexService.fetchAllForTrend(_query);
-      _trendData = OpenAlexService.getTrendByYear(_allPubs);
+      final realCount = await OpenAlexService.getRealTotalCount(_query);
+      
+      _trendData   = OpenAlexService.getTrendByYear(_allPubs);
       _topJournals = OpenAlexService.getTopJournals(_allPubs);
-      _topAuthors = OpenAlexService.getTopAuthors(_allPubs);
-      _dashboard = OpenAlexService.getDashboard(_allPubs);
+      _topAuthors  = OpenAlexService.getTopAuthors(_allPubs);
+      _topKeywords = OpenAlexService.getTopKeywords(_allPubs);
+      _dashboard   = OpenAlexService.getDashboard(_allPubs, realTotalPublications: realCount);
     } catch (_) {}
     _isFetchingAll = false;
     notifyListeners();

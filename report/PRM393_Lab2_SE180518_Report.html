@@ -114,6 +114,9 @@
   <li>Error state with retry button if API call fails</li>
 </ul>
 
+<img src="screenshot_search.png" alt="Search Screen" style="max-width:320px; display:block; margin:12px auto; border:1px solid #ddd; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+<p style="color:#666; font-size:10pt; text-align:center;"><em>Figure 5: Search Screen — 50 results for "Artificial Intelligence" sorted by citation count</em></p>
+
 <h3>4.2 Publication Details – Publication Detail Screen</h3>
 <p>Tapping any publication card opens a full detail screen showing:</p>
 <ul>
@@ -126,12 +129,18 @@
   <li>"Open Full Paper" button — opens the paper URL in device browser</li>
 </ul>
 
+<img src="screenshot_detail.png" alt="Publication Detail Screen" style="max-width:320px; display:block; margin:12px auto; border:1px solid #ddd; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+<p style="color:#666; font-size:10pt; text-align:center;"><em>Figure 6: Publication Detail Screen — XGBoost paper with 48,033 citations, DOI, authors, and full abstract</em></p>
+
 <h3>4.3 Publication Trend Analysis – Trend Screen</h3>
 <p>The trend screen provides 4 sub-sections accessible via chip tabs:</p>
 <p><strong>Publication Trend Chart</strong> — Line chart (fl_chart) showing number of publications per year from 1990 to present. Smooth curved line with filled area below. X-axis shows years, Y-axis shows publication count.</p>
 <p><strong>Top Influential Papers</strong> — Top 20 papers ranked by citation count (highest to lowest). Shows title, citation count, and year. Tap to view publication details.</p>
 <p><strong>Top Research Journals</strong> — Top 10 journals ranked by number of publications, with horizontal progress bar showing relative contribution.</p>
 <p><strong>Top Contributing Authors</strong> — Top 10 authors ranked by number of papers, with progress bar visualization.</p>
+
+<img src="screenshot_trend.png" alt="Trend Analysis Screen" style="max-width:320px; display:block; margin:12px auto; border:1px solid #ddd; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+<p style="color:#666; font-size:10pt; text-align:center;"><em>Figure 7: Trend Analysis Screen — Publications per year for "Artificial Intelligence" (34 years, 200 publications)</em></p>
 
 <h3>4.7 Research Trend Dashboard – Dashboard Screen</h3>
 <p>Summary dashboard with key insights about the searched topic:</p>
@@ -145,6 +154,9 @@
   <tr><td>Top Author</td><td>Author with most publications on the topic</td></tr>
   <tr><td>Most Influential Paper</td><td>Paper with highest citation count</td></tr>
 </table>
+
+<img src="screenshot_dashboard.png" alt="Research Dashboard Screen" style="max-width:320px; display:block; margin:12px auto; border:1px solid #ddd; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+<p style="color:#666; font-size:10pt; text-align:center;"><em>Figure 8: Research Dashboard — Key metrics for "Artificial Intelligence": 200 publications, avg 7861.9 citations, Most Active Year 2020, Top Journal: Machine Learning</em></p>
 
 <h2>5. Technical Stack</h2>
 
@@ -166,21 +178,35 @@
 <h3>6.1 Tool Used</h3>
 <p><strong>CodeRabbit</strong> (coderabbit.ai) — an AI-powered automated code review tool that analyzes code for bugs, security issues, performance problems, and code quality improvements.</p>
 
+<p>The review was conducted on Pull Request #4 of the repository. CodeRabbit identified <strong>5 actionable comments</strong> in the code.</p>
+
+<img src="coderabbit_overview.png" alt="CodeRabbit Overview - 5 actionable comments" style="max-width:100%; border:1px solid #ddd; border-radius:6px; margin:12px 0;">
+<p style="color:#666; font-size:10pt; text-align:center;"><em>Figure 1: CodeRabbit review summary — 5 actionable comments found in PR #4</em></p>
+
 <h3>6.2 Issues Found and Fixed</h3>
-<p><strong>Issue 1: Silent error handling in analytics fetch</strong><br>
-<em>Location:</em> search_provider.dart — _fetchAllForAnalytics() method<br>
-<em>Problem:</em> The catch block was completely empty. Any exception during the background analytics fetch would be silently swallowed. If the analytics fetch failed, the Trend and Dashboard tabs would show a loading indicator forever with no way for the user to know something went wrong.<br>
-<em>Fix applied:</em> Added proper EmptyState and ErrorState widgets on the Trend and Dashboard screens so users see meaningful feedback instead of an indefinite loading state.</p>
+<p><strong>Issue 1: Missing timeout and exception behavior documentation</strong> — 🔧 Refactor | 🟠 Major<br>
+<em>Detected by:</em> CodeRabbit — lines 20–25 in <code>lib/services/openalex_service.dart</code><br>
+<em>Problem:</em> The <code>searchPublications()</code> method documentation does not mention: (1) the 15-second request timeout, and (2) that it throws an <code>Exception</code> when the API returns non-200 status codes. This information is essential for callers to handle errors and timeouts correctly.<br>
+<em>Fix applied:</em> Updated the method docstring to include timeout duration and exception behavior so callers know what to expect when network issues occur.</p>
 
-<p><strong>Issue 2: Potential notifyListeners() after dispose</strong><br>
-<em>Location:</em> search_provider.dart — async methods<br>
-<em>Problem:</em> notifyListeners() was being called inside async functions that could complete after the widget tree is disposed. While Flutter's ChangeNotifier handles this internally, it's considered best practice to guard against it.<br>
-<em>Fix applied:</em> Acknowledged as low risk since SearchProvider lives for the full app lifecycle. No structural change needed.</p>
+<img src="coderabbit_issue1.png" alt="CodeRabbit Issue 1" style="max-width:100%; border:1px solid #ddd; border-radius:6px; margin:12px 0;">
+<p style="color:#666; font-size:10pt; text-align:center;"><em>Figure 2: Issue 1 — Missing timeout and exception documentation in searchPublications()</em></p>
 
-<p><strong>Issue 3: Hardcoded email address in service</strong><br>
-<em>Location:</em> openalex_service.dart — _email constant<br>
-<em>Problem:</em> The email used for OpenAlex's polite pool is hardcoded in source code. In production, configuration values should be externalized.<br>
-<em>Fix applied:</em> Acceptable for lab scope. In production, this would be moved to a .env file or Flutter's --dart-define build configuration.</p>
+<p><strong>Issue 2: Missing parameter and return type documentation in getTrendByYear()</strong> — 🔧 Refactor | 🟠 Major<br>
+<em>Detected by:</em> CodeRabbit — lines 58–59 in <code>lib/services/openalex_service.dart</code><br>
+<em>Problem:</em> The <code>getTrendByYear()</code> method does not follow Dart documentation conventions — the <code>pubs</code> parameter and the return type <code>List&lt;YearCount&gt;</code> are not explicitly documented. This makes it unclear what input is expected and what the caller receives back.<br>
+<em>Fix applied:</em> Added <code>@param pubs</code> and <code>@returns</code> documentation following Dart doc conventions.</p>
+
+<img src="coderabbit_issue2.png" alt="CodeRabbit Issue 2" style="max-width:100%; border:1px solid #ddd; border-radius:6px; margin:12px 0;">
+<p style="color:#666; font-size:10pt; text-align:center;"><em>Figure 3: Issue 2 — Missing parameter documentation in getTrendByYear()</em></p>
+
+<p><strong>Issue 3: Missing parameter and return type documentation in getTopJournals()</strong> — 🔧 Refactor | 🟠 Major<br>
+<em>Detected by:</em> CodeRabbit — lines 71–72 in <code>lib/services/openalex_service.dart</code><br>
+<em>Problem:</em> The <code>getTopJournals()</code> method is missing documentation for both the <code>pubs</code> and <code>top</code> parameters, as well as the return type. Following Dart documentation conventions, all parameters and return values should be documented for maintainability.<br>
+<em>Fix applied:</em> Added complete parameter and return type documentation to <code>getTopJournals()</code> and similarly to <code>getTopAuthors()</code> which had the same issue.</p>
+
+<img src="coderabbit_issue3.png" alt="CodeRabbit Issue 3" style="max-width:100%; border:1px solid #ddd; border-radius:6px; margin:12px 0;">
+<p style="color:#666; font-size:10pt; text-align:center;"><em>Figure 4: Issue 3 — Missing parameter documentation in getTopJournals()</em></p>
 
 <h3>6.3 Code Improvements Applied</h3>
 <ul>
